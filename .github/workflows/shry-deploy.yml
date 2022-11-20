@@ -37,7 +37,7 @@ jobs:
         with:
             user: __token__
             password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-            repository_url: https://test.pypi.org/
+            repository_url: https://test.pypi.org/legacy/
             verbose: true
         
       #- name: Publish distribution to PyPI

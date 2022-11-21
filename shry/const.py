@@ -5,17 +5,7 @@
 Shared constants
 """
 
-# information
-__author__ = "Genki Prayogo, and Kosuke Nakano"
-__copyright__ = "Copyright (c) 2021-, The SHRY Project"
-__credits__ = ["Genki Prayogo", "Kosuke Nakano"]
-
-__license__ = "MIT"
-__maintainer__ = "Genki Prayogo"
-__email__ = "g.prayogo@icloud.com"
-__date__ = "15. Nov. 2021"
-__status__ = "Production"
-
+# python modules
 import re
 import datetime
 
@@ -33,6 +23,7 @@ DEFAULT_ANGLE_TOLERANCE = 5.0
 DEFAULT_DIR_SIZE = 10000
 DEFAULT_WRITE_SYMM = False
 DEFAULT_WRITE_EWALD = False
+DEFAULT_MAX_EWALD = None
 DEFAULT_NO_WRITE = False
 DEFAULT_NO_DMAT = False
 DEFAULT_T_KIND = "sum"

@@ -5,26 +5,19 @@
 Command line interface.
 """
 
-# information
-__author__ = "Genki Prayogo, and Kosuke Nakano"
-__copyright__ = "Copyright (c) 2021-, The SHRY Project"
-__credits__ = ["Genki Prayogo", "Kosuke Nakano"]
-
-__license__ = "MIT"
-__maintainer__ = "Genki Prayogo"
-__email__ = "g.prayogo@icloud.com"
-__date__ = "15. Nov. 2021"
-__status__ = "Production"
-
+# python modules
 import argparse
 import datetime
 import fnmatch
 import logging
 
+# python modules
 import tqdm
+import numpy as np
+import setuptools_scm
 
+# shry modules
 from . import const
-
 
 class TqdmLoggingHandler(logging.Handler):
     """
@@ -80,6 +73,7 @@ def print_footer():
 
 def main():  # pylint: disable=missing-function-docstring
     parser = argparse.ArgumentParser(
+        epilog=f"SHRY version {setuptools_scm.get_version()}",
         description="Quick use: `shry STRUCTURE_CIF`. See `shry -h` for more options.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -126,8 +120,9 @@ def main():  # pylint: disable=missing-function-docstring
         nargs="*",
         type=str,  # To allow flexible separator
         help=(
-            "Three or nine (for non-diagonal supercell) integers specifying "
-            "the scaling matrix for constructing a supercell."
+            "Three (for diagonal supercells) or nine (for non-diagonal supercells) integers specifying "
+            "the scaling matrix for constructing a supercell. One scalar value is also accepted, "
+            "which is converted to three scalar values (e.g., 1 -> 1 1 1)"
         ),
         default=const.DEFAULT_SCALING_MATRIX_STR,
     )
@@ -174,6 +169,11 @@ def main():  # pylint: disable=missing-function-docstring
             "Use Wyckoff labels from a symmetry search to label the input CIF's sites. "
             "By default, the label given within the CIF is used."
         ),
+    )
+    group.add_argument(
+        "--max-ewald",
+        type=float,
+        help="Set maximum Ewald energy for the output CIFs",
     )
 
     group = parser.add_argument_group("run configuration")
@@ -253,9 +253,21 @@ def main():  # pylint: disable=missing-function-docstring
             int(x)
             for x in const.FLEXIBLE_SEPARATOR.split(",".join(args.scaling_matrix))
         ]
+
+        # check the dimension of the scaling matrix
+        if not len(scaling_matrix) in {1, 3, 9}:
+            logging.warning("The scaling_matrix should be 1, 3, or 9 scalar values.")
+            raise ValueError
+        else:
+            if len(scaling_matrix) == 9:
+                scaling_matrix = np.array(scaling_matrix).reshape(3, 3)
+            else:
+                scaling_matrix = np.array(scaling_matrix)
+
         from_species = list(filter(None, from_species))
         to_species = list(filter(None, to_species))
-        scaling_matrix = list(filter(None, scaling_matrix))
+        #scaling_matrix = list(filter(None, scaling_matrix)) #here! the problem is that filter removes 0!
+
         helper = ScriptHelper(
             structure_file=args.input,
             from_species=from_species,
@@ -270,6 +282,7 @@ def main():  # pylint: disable=missing-function-docstring
             dir_size=args.dir_size,
             write_symm=args.write_symm,
             write_ewald=args.write_ewald,
+            max_ewald=args.max_ewald,
             no_write=args.no_write,
             no_dmat=args.no_dmat,
             t_kind=args.t_kind,

@@ -4,19 +4,7 @@
 Main task abstraction
 """
 
-# information
-__author__ = "Genki Prayogo, and Kosuke Nakano"
-__copyright__ = "Copyright (c) 2021-, The SHRY Project"
-__credits__ = ["Genki Prayogo", "Kosuke Nakano"]
-
-__license__ = "MIT"
-__version__ = "1.1.0"
-__maintainer__ = "Genki Prayogo"
-__email__ = "g.prayogo@icloud.com"
-__date__ = "15. Nov. 2021"
-__status__ = "Production"
-
-
+# python modules
 import ast
 import collections
 import configparser
@@ -33,6 +21,8 @@ import signal
 import sys
 from fnmatch import fnmatch
 
+# python modules
+import setuptools_scm
 import numpy as np
 import tqdm
 from pymatgen.core import Composition, PeriodicSite, Species, Structure
@@ -43,6 +33,7 @@ from pymatgen.io.vasp.inputs import Poscar
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer, SpacegroupOperations
 from pymatgen.util.coord import in_coord_list_pbc, lattice_points_in_supercell
 
+# shry modules
 from . import const
 from .core import Substitutor
 
@@ -197,6 +188,7 @@ class ScriptHelper:
         dir_size=const.DEFAULT_DIR_SIZE,
         write_symm=const.DEFAULT_WRITE_SYMM,
         write_ewald=const.DEFAULT_WRITE_EWALD,
+        max_ewald=const.DEFAULT_MAX_EWALD,
         no_write=const.DEFAULT_NO_WRITE,
         no_dmat=const.DEFAULT_NO_DMAT,
         no_cache=False,
@@ -229,6 +221,9 @@ class ScriptHelper:
         self.dir_size = dir_size
         self.write_symm = write_symm
         self.write_ewald = write_ewald
+        self.max_ewald = max_ewald
+        if self.max_ewald is not None:
+            self.write_ewald = True
 
         logging.info("\nRun configurations:")
         logging.info(const.HLINE)
@@ -266,7 +261,7 @@ class ScriptHelper:
     def __str__(self):
         string = ""
         print_format = "  * {} = {}\n"
-        string += print_format.format("SHRY version", __version__)
+        string += print_format.format("SHRY version", setuptools_scm.get_version())
         string += print_format.format("structure_file", self.structure_file)
         string += print_format.format(
             "from_species", ", ".join(map(str, self.from_species))
@@ -274,7 +269,7 @@ class ScriptHelper:
         string += print_format.format(
             "to_species", ", ".join(map(str, self.to_species))
         )
-        string += print_format.format("scaling_matrix", self.scaling_matrix)
+        string += print_format.format("scaling_matrix", np.array(self.scaling_matrix).flatten())
         string += print_format.format("symmetrize", self.symmetrize)
         string += print_format.format("sample", self.sample)
         string += print_format.format("symprec", self.symprec)
@@ -316,6 +311,7 @@ class ScriptHelper:
         """
         Reads *.ini file containing command line arguments
         """
+        # TODO: simplify
         parser = configparser.ConfigParser(
             empty_lines_in_values=False, allow_no_value=False
         )
@@ -514,6 +510,9 @@ class ScriptHelper:
             weight = packet["weight"]
             letter = packet["letter"]
 
+            if self.max_ewald is not None and ewald > self.max_ewald:
+                continue
+
             line = f"{i} {weight} {letter}"
             if ewald is not None:
                 line = line + f" {ewald}"
@@ -572,9 +571,19 @@ class LabeledStructure(Structure):
         The parent method returns Structure instance!
         Overwrite the offending line.
         """
+
         scale_matrix = np.array(scaling_matrix, np.int16)
-        if scale_matrix.shape != (3, 3):
-            scale_matrix = np.array(scale_matrix * np.eye(3), np.int16)
+
+        # check the shape of the scaling matrix
+        if not scale_matrix.shape in {(1,), (3,), (3, 3)}:
+            logging.warning("The scale_matrix.shape should be (1,), (3,), or (3, 3)")
+            raise ValueError
+        else:
+            if scale_matrix.shape != (3, 3):
+                scale_matrix = np.array(scale_matrix * np.eye(3), np.int16)
+            else:
+                pass
+
         new_lattice = Lattice(np.dot(scale_matrix, self._lattice.matrix))
 
         f_lat = lattice_points_in_supercell(scale_matrix)

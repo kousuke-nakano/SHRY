@@ -4,18 +4,7 @@
 Core operations, pattern generation, etc.
 """
 
-# information
-__author__ = "Genki Prayogo, and Kosuke Nakano"
-__copyright__ = "Copyright (c) 2021-, The SHRY Project"
-__credits__ = ["Genki Prayogo", "Kosuke Nakano"]
-
-__license__ = "MIT"
-__maintainer__ = "Genki Prayogo"
-__email__ = "g.prayogo@icloud.com"
-__date__ = "15. Nov. 2021"
-__status__ = "Production"
-
-
+# python modules
 import collections
 import functools
 import itertools
@@ -25,6 +14,7 @@ import random
 import sys
 from typing import OrderedDict, Tuple
 
+# python modules
 import numpy as np
 import spglib
 import sympy
@@ -41,6 +31,7 @@ from scipy.special import comb
 from sympy.utilities.iterables import multiset_permutations
 from tabulate import tabulate
 
+# shry modules
 from . import const
 
 np.seterr(all="raise")
@@ -856,24 +847,26 @@ class Substitutor:
                 will return in this order.
         """
         is_c = "cifwriter" in q
+        is_s = "structure" in q
         is_w = "weight" in q
         is_l = "letter" in q
         is_e = "ewald" in q
-        is_s = "structure" in q
 
         packet = collections.defaultdict(lambda: None)
         for a, p in self.make_patterns():
             packet.clear()
             if is_c:
                 packet["cifwriter"] = self._get_cifwriter(p, symprec)
+            if is_s:
+                packet["structure"] = self._get_structure(p)
             if is_e:
                 packet["ewald"] = self._get_ewald(p, symprec)
             if is_w:
                 packet["weight"] = self._get_weight(a)
             if is_l:
                 packet["letter"] = self._get_letters(p)
-            if is_s:
-                packet["structure"] = self._get_structure(p)
+            # filter on packet!
+            # naive: if filter(packet["ewald"]): yield else skip
             yield packet
 
     def letters(self):
@@ -1138,7 +1131,7 @@ class Substitutor:
 
     def _get_ewald(self, p, symprec):
         """
-        Get ewald sums of the structures.
+        Get ewald sums of a structure.
         """
         # TODO: less ad hoc implementation.
         cifwriter = self._get_cifwriter(p, symprec)

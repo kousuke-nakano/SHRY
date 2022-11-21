@@ -2,22 +2,30 @@
 # pylint: disable=redefined-outer-name,missing-function-docstring,wrong-import-order,unused-import,invalid-name,protected-access
 """Test core operations."""
 
+#python modules
+import os
 import filecmp
 import glob
 import shutil
-
 import numpy as np
+import pandas as pd
 import pytest
-from pymatgen.analysis.ewald import EwaldSummation
-from pymatgen.core import Structure
-from shry.core import NeedSupercellError, PatternMaker, Polya, Substitutor, TooBigError
-from shry.main import LabeledStructure, ScriptHelper
 from sympy.tensor.indexed import IndexedBase
 
+#pymatgen
+from pymatgen.analysis.ewald import EwaldSummation
+from pymatgen.core import Structure
+
+#shry
+from shry.core import NeedSupercellError, PatternMaker, Polya, Substitutor, TooBigError
+from shry.main import LabeledStructure, ScriptHelper
 from helper import chdir
 
-# PatternMaker basic functions.
+# Tolerances
+SHRY_TOLERANCE=0.01      #angstrom
+SHRY_ANGLE_TOLERANCE=5.0 #degree
 
+# PatternMaker basic functions.
 
 def test_perm_label():
     """
@@ -103,7 +111,7 @@ def test_search(pm):
 )
 @chdir("../examples")
 def test_all(from_species, to_species):
-    """Integrated test with multi-color multi-orbit structure."""
+    """Integrated test with multi-color multi-orbit structure.."""
     if to_species == ("FeTiSnAu",):
         with pytest.raises(TooBigError):
             sh = ScriptHelper(
@@ -168,6 +176,87 @@ def test_sequential():
     assert substitutor.count() == 147
     assert len(list(substitutor.weights())) == 147
 
+@chdir("../examples")
+def test_sequential_scaling_diagonal_one_scalar_value():
+    """
+    Test sequential use of Substitutor;
+    basically testing the setter of Substitutor.structure
+    """
+    structure = LabeledStructure.from_file("SmFe12.cif")
+    structure1 = structure.copy()
+    structure2 = structure.copy()
+    structure1.replace_species({"Fe1": "Fe7Ti"})
+    structure2.replace_species({"Fe2": "Fe6Ti2"})
+    structure1 *= [2]
+    structure2 *= [2]
+
+    substitutor = Substitutor(structure1)
+    assert substitutor.count() == 17324048
+    substitutor.structure = structure2
+    assert substitutor.count() == 1909076572380
+
+@chdir("../examples")
+def test_sequential_scaling_diagonal_three_scalar_values():
+    """
+    Test sequential use of Substitutor;
+    basically testing the setter of Substitutor.structure
+    """
+    structure = LabeledStructure.from_file("SmFe12.cif")
+    structure1 = structure.copy()
+    structure2 = structure.copy()
+    structure1.replace_species({"Fe1": "Fe7Ti"})
+    structure2.replace_species({"Fe2": "Fe6Ti2"})
+    structure1 *= [1, 2, 1]
+    structure2 *= [1, 2, 1]
+
+    substitutor = Substitutor(structure1)
+    assert substitutor.count() == 11
+    assert len(list(substitutor.weights())) == 11
+    substitutor.structure = structure2
+    assert substitutor.count() == 147
+    assert len(list(substitutor.weights())) == 147
+
+@chdir("../examples")
+def test_sequential_scaling_diagonal_matrix():
+    """
+    Test sequential use of Substitutor;
+    basically testing the setter of Substitutor.structure
+    """
+    structure = LabeledStructure.from_file("SmFe12.cif")
+    structure1 = structure.copy()
+    structure2 = structure.copy()
+    structure1.replace_species({"Fe1": "Fe7Ti"})
+    structure2.replace_species({"Fe2": "Fe6Ti2"})
+    structure1 *= [[1, 0, 0],[0, 2, 0],[0, 0, 1]]
+    structure2 *= [[1, 0, 0],[0, 2, 0],[0, 0, 1]]
+
+    substitutor = Substitutor(structure1)
+    assert substitutor.count() == 11
+    assert len(list(substitutor.weights())) == 11
+    substitutor.structure = structure2
+    assert substitutor.count() == 147
+    assert len(list(substitutor.weights())) == 147
+
+@chdir("../examples")
+def test_sequential_scaling_nondiagonal_matrix():
+    """
+    Test sequential use of Substitutor;
+    basically testing the setter of Substitutor.structure
+    """
+    structure = LabeledStructure.from_file("SmFe12.cif")
+    structure1 = structure.copy()
+    structure2 = structure.copy()
+    structure1.replace_species({"Fe1": "Fe7Ti"})
+    structure2.replace_species({"Fe2": "Fe6Ti2"})
+    structure1 *= [[0, 1, 0],[2, 0, 0],[0, 0, 1]]
+    structure2 *= [[0, 1, 0],[2, 0, 0],[0, 0, 1]]
+
+    substitutor = Substitutor(structure1)
+    assert substitutor.count() == 11
+    assert len(list(substitutor.weights())) == 11
+    substitutor.structure = structure2
+    assert substitutor.count() == 147
+    assert len(list(substitutor.weights())) == 147
 
 @chdir("../examples")
 def test_no_disorder():
@@ -179,10 +268,9 @@ def test_no_disorder():
     assert list(substitutor.weights()) == [1]
     assert len(list(substitutor.cifwriters())) == 1
 
-
 @chdir("../examples")
 def test_cifwriter():
-    """Test cifwriter implementation."""
+    #Test cifwriter implementation.
     sh = ScriptHelper("SmFe7Ti.cif")
     sh.write()
     cifs = glob.glob("shry-SmFe*/slice*/*.cif")
@@ -208,18 +296,16 @@ def test_cifwriter():
 
     sh = ScriptHelper("SmFeTi.cif", write_symm=True)
     sh.write()
-    cifs = glob.glob("shry-SmFe*/slice*/*.cif")
-    ref_cifs = glob.glob("../tests/test_cifs/smfe7ti_sym/slice*/*.cif")
+    structures = [Structure.from_file(x) for x in glob.glob("shry-SmFe*/slice*/*.cif")]
+    ref_structures = [Structure.from_file(x) for x in glob.glob("../tests/test_cifs/smfe7ti_sym/slice*/*.cif")]
 
     try:
-        for cif in cifs:
-            assert any(filecmp.cmp(cif, x) for x in ref_cifs)
+        assert any(any(x==structure for x in ref_structures) for structure in structures)
     finally:
         # Cleanup
         shry_outdirs = glob.glob("shry-SmFe*")
         for outdir in shry_outdirs:
             shutil.rmtree(outdir)
-
 
 @chdir("../examples")
 def test_cifwriter2():
@@ -262,7 +348,7 @@ def test_ewald():
         assert "defined oxidation" in str(excinfo.value)
 
 
-@pytest.mark.skip(reason="Feature not implemented.")
+@pytest.mark.skip(reason="Feature dropped.")
 @chdir("../examples")
 def test_matheval():
     """
@@ -270,9 +356,6 @@ def test_matheval():
     """
     sh = ScriptHelper("SmFe12.cif", sample="2/3*10000")
     assert sh.sample == 6666
-
-
-# Polya functions
 
 
 @pytest.fixture
@@ -298,3 +381,34 @@ def test_ci(polya):
 def test_count(polya):
     """Test counting of pattern. One should be enough representative."""
     assert polya.count(((3, 1), (2, 1))) == 5
+
+
+@pytest.mark.skip(reason="Comprehensive but time consuming. It will be activated later.")
+@chdir("../benchmarks/03scailing_benchmark")
+def test_benchmark():
+    """benchmark / the number of symmetry-inequivalent structures."""
+    df = pd.read_excel("./benchmark_SG_all.xls")
+    for row, zipped in enumerate(
+        zip(
+            df["Supercell"],
+            df["File"],
+            df["Substitutions"],
+            df["Equivalent Structures"],
+            df["Checked"],
+        )
+    ):
+        supercell, filename, substitution, equivalent, checked = zipped
+
+        cif_basename = os.path.basename(filename).replace(".cif", "")
+        filename = filename.replace(".cif", "_partial.cif")
+        print(f"filename={filename}")
+        structure = LabeledStructure.from_file(filename)
+        supercell_size = list(map(int,supercell.split("x")))
+        print(supercell_size)
+        structure *= supercell_size
+        s = Substitutor(structure,symprec=SHRY_TOLERANCE,angle_tolerance=SHRY_ANGLE_TOLERANCE)
+        count_obtained=s.count()
+        count_ref=equivalent
+        print(f"count_obtained={count_obtained}")
+        print(f"count_ref={count_ref}")
+        assert count_obtained == count_ref
